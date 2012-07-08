@@ -22,7 +22,7 @@ static const uint8_t vcom_device_descriptor_data[18] = {
                          0xFF,          /* bDeviceClass (FF=Vendor specific */
                          0x00,          /* bDeviceSubClass.                 */
                          0x00,          /* bDeviceProtocol.                 */
-                         0x40,          /* bMaxPacketSize.                  */
+                         0x40,          /* bMaxPacketSize0.                 */
                          0x0483,        /* idVendor (ST).                   */
                          0xffff,        /* idProduct.                       */
                          0x0200,        /* bcdDevice Device Release Number  */
@@ -43,8 +43,12 @@ static const USBDescriptor vcom_device_descriptor = {
 /*
  * Configuration Descriptor
  */
-
-static const uint8_t vcom_configuration_descriptor_data[32] = {
+//MaxPacketsize for Bulk Full-Speed is 0x40
+#define IN_PACKETSIZE  0x0040
+#define OUT_PACKETSIZE 0x0040
+#define EP_IN 1
+#define EP_OUT 2
+static const uint8_t vcom_configuration_descriptor_data[9+9+7+7] = {
   /* Configuration Descriptor.*/
   //9 Bytes
   USB_DESC_CONFIGURATION(sizeof vcom_configuration_descriptor_data,            /* wTotalLength.                    */
@@ -58,26 +62,22 @@ static const uint8_t vcom_configuration_descriptor_data[32] = {
   USB_DESC_INTERFACE    (0x00,          /* bInterfaceNumber.                */
                          0x00,          /* bAlternateSetting.               */
                          0x02,          /* bNumEndpoints.                   */
-                         0xFF,          /* bInterfaceClass (Communications
-                                           Interface Class, CDC section
-                                           4.2).                            */
-                         0x00,          /* bInterfaceSubClass (Abstract
-                                         Control Model, CDC section 4.3).   */
-                         0x00,          /* bInterfaceProtocol (AT commands,
-                                           CDC section 4.4).                */
+                         0xFF,          /* bInterfaceClass (VendorSpecific) */
+                         0x00,          /* bInterfaceSubClass               */
+                         0x00,          /* bInterfaceProtocol               */
                          0),            /* iInterface.                      */
   /* Endpoint 1 Descriptor, Direction in*/
   //7 Bytes
-  USB_DESC_ENDPOINT     (1|0x80,     /* bEndpointAddress.*/
-                         0x02,          /* bmAttributes (Bulk).             */
-                         0x0040,        /* wMaxPacketSize.                  */
-                         0x00),         /* bInterval.                       */
+  USB_DESC_ENDPOINT     (EP_IN|USB_RTYPE_DIR_DEV2HOST,  /* bEndpointAddress */
+                         0x02,                      /* bmAttributes (Bulk)  */
+                         IN_PACKETSIZE,             /* wMaxPacketSize       */
+                         0x00),                     /* bInterval            */
   // Endpoint 2 Descriptor Direction out
   //7 Bytes
-  USB_DESC_ENDPOINT     (2,        // bEndpointAddress.
-                         0x02,          // bmAttributes (Bulk).
-                         0x0040,        // wMaxPacketSize.
-                         0x00)          // bInterval.
+  USB_DESC_ENDPOINT     (EP_OUT|USB_RTYPE_DIR_HOST2DEV,  // bEndpointAddress
+                         0x02,                      // bmAttributes (Bulk)
+                         OUT_PACKETSIZE,            // wMaxPacketSize
+                         0x00)                      // bInterval
 };
 
 /*
@@ -91,7 +91,7 @@ static const USBDescriptor vcom_configuration_descriptor = {
 /*
  * U.S. English language identifier.
  */
-static const uint8_t vcom_string0[] = {
+static const uint8_t stringLanguage[] = {
   USB_DESC_BYTE(4),                     /* bLength.                         */
   USB_DESC_BYTE(USB_DESCRIPTOR_STRING), /* bDescriptorType.                 */
   USB_DESC_WORD(0x0409)                 /* wLANGID (U.S. English).          */
@@ -100,7 +100,7 @@ static const uint8_t vcom_string0[] = {
 /*
  * Vendor string.
  */
-static const uint8_t vcom_string1[] = {
+static const uint8_t stringVendor[] = {
   USB_DESC_BYTE(38),                    /* bLength.                         */
   USB_DESC_BYTE(USB_DESCRIPTOR_STRING), /* bDescriptorType.                 */
   'S', 0, 'T', 0, 'M', 0, 'i', 0, 'c', 0, 'r', 0, 'o', 0, 'e', 0,
@@ -111,23 +111,22 @@ static const uint8_t vcom_string1[] = {
 /*
  * Device Description string.
  */
-static const uint8_t vcom_string2[] = {
-  USB_DESC_BYTE(56),                    /* bLength.                         */
+static const uint8_t stringDeviceDescriptor[] = {
+  USB_DESC_BYTE(48),                    /* bLength.                         */
   USB_DESC_BYTE(USB_DESCRIPTOR_STRING), /* bDescriptorType.                 */
   'C', 0, 'h', 0, 'i', 0, 'b', 0, 'i', 0, 'O', 0, 'S', 0, '/', 0,
-  'R', 0, 'T', 0, ' ', 0, 'V', 0, 'i', 0, 'r', 0, 't', 0, 'u', 0,
-  'a', 0, 'l', 0, ' ', 0, 'C', 0, 'O', 0, 'M', 0, ' ', 0, 'P', 0,
-  'o', 0, 'r', 0, 't', 0
+  'C', 0, 'u', 0, 's', 0, 't', 0, 'o', 0, 'm', 0, ' ', 0, 'H', 0,
+  'a', 0, 'r', 0, 'd', 0, 'w', 0, 'a', 0, 'r', 0, 'e', 0
 };
 
 /*
  * Serial Number string.
  */
-static const uint8_t vcom_string3[] = {
-  USB_DESC_BYTE(8),                     /* bLength.                         */
+static const uint8_t stringSerialNumber[] = {
+  USB_DESC_BYTE(12),                    /* bLength .                        */
   USB_DESC_BYTE(USB_DESCRIPTOR_STRING), /* bDescriptorType.                 */
-  '0' + CH_KERNEL_MAJOR, 0,
-  '0' + CH_KERNEL_MINOR, 0,
+  '0' + CH_KERNEL_MAJOR, 0, '.', 0,
+  '0' + CH_KERNEL_MINOR, 0, '.', 0,
   '0' + CH_KERNEL_PATCH, 0
 };
 
@@ -135,10 +134,10 @@ static const uint8_t vcom_string3[] = {
  * Strings wrappers array.
  */
 static const USBDescriptor vcom_strings[] = {
-  {sizeof vcom_string0, vcom_string0},
-  {sizeof vcom_string1, vcom_string1},
-  {sizeof vcom_string2, vcom_string2},
-  {sizeof vcom_string3, vcom_string3}
+  {sizeof stringLanguage,           stringLanguage},
+  {sizeof stringVendor,             stringVendor},
+  {sizeof stringDeviceDescriptor,   stringDeviceDescriptor},
+  {sizeof stringSerialNumber,       stringSerialNumber}
 };
 
 

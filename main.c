@@ -44,7 +44,7 @@ static const USBEndpointConfig ep1config = {
   NULL,                     //Setup packet notification callback (NULL for non-control EPs)
   dataTransmitted,          //IN endpoint notification callback
   NULL,                     //OUT endpoint notification callback
-  0x0040,                   //IN endpoint maximum packet size
+  IN_PACKETSIZE,            //IN endpoint maximum packet size
   0x0000,                   //OUT endpoint maximum packet size
   &ep1instate,              //USBEndpointState associated to the IN endpoint
   NULL,                     //USBEndpointState associated to the OUTendpoint
@@ -97,7 +97,7 @@ static const USBEndpointConfig ep2config = {
   NULL,
   dataReceived,
   0x0000,
-  0x0040,
+  OUT_PACKETSIZE,
   NULL,
   &ep2outstate,
   NULL
