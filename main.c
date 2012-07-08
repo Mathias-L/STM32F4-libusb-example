@@ -8,17 +8,10 @@
 
 #include "usbdescriptor.h"
 
-int transmitting = 0;
-int receiving = 0;
-
-
-uint8_t receiveBuf[64];
-uint8_t transferBuf[64];
+uint8_t receiveBuf[OUT_PACKETSIZE];
+uint8_t transferBuf[IN_PACKETSIZE];
 
 USBDriver *  	usbp = &USBD1;
-#define EP_IN 1
-#define EP_OUT 2
-
 
 /*
  * data Transmitted Callback
@@ -27,8 +20,13 @@ void dataTransmitted(USBDriver *usbp, usbep_t ep){
     (void) usbp;
     (void) ep;
     palTogglePad(GPIOD, GPIOD_LED3);
-    //unlock transmitter
-    transmitting = 0;
+
+    usbPrepareTransmit(usbp, EP_IN, transferBuf, IN_PACKETSIZE);
+
+    chSysLockFromIsr();
+    usbStartTransmitI(usbp, EP_IN);
+    chSysUnlockFromIsr();
+
 }
 
 /**
@@ -59,17 +57,26 @@ static const USBEndpointConfig ep1config = {
 void dataReceived(USBDriver *usbp, usbep_t ep){
     (void) usbp;
     (void) ep;
-    uint16_t i;
-
-    palTogglePad(GPIOD, GPIOD_LED4);
 
     //osp == ep2outstate
     USBOutEndpointState *osp = usbp->epc[ep]->out_state;
-    for (i=0;i<osp->rxcnt;i++){
-        //maybe replace receiveBuf with osp->something
-        transferBuf[i] = receiveBuf[i];
+    if(osp->rxcnt){
+        switch(receiveBuf[0]){
+            case '1':
+                palTogglePad(GPIOD, GPIOD_LED3);
+                break;
+            case '2':
+                palTogglePad(GPIOD, GPIOD_LED4);
+                break;
+            case '3':
+                palTogglePad(GPIOD, GPIOD_LED5);
+                break;
+            case '4':
+                palTogglePad(GPIOD, GPIOD_LED6);
+                break;
+
+        }
     }
-    receiving = 0;
 
     /*
      * Initiate next receive
@@ -79,8 +86,6 @@ void dataReceived(USBDriver *usbp, usbep_t ep){
     chSysLockFromIsr();
     usbStartReceiveI(usbp, EP_OUT);
     chSysUnlockFromIsr();
-    palTogglePad(GPIOD, GPIOD_LED4);
-
 }
 
 /**
@@ -132,6 +137,7 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
   case USB_EVENT_STALLED:
     return;
   }
+  palTogglePad(GPIOD, GPIOD_LED5);
   return;
 }
 
@@ -149,9 +155,14 @@ static const USBDescriptor *get_descriptor(USBDriver *usbp,
   case USB_DESCRIPTOR_CONFIGURATION:
     return &vcom_configuration_descriptor;
   case USB_DESCRIPTOR_STRING:
-    if (dindex < 4)
+    if (dindex < 4){
       return &vcom_strings[dindex];
+      }
+      else{
+          return &vcom_strings[4];
+      }
   }
+  palTogglePad(GPIOD, GPIOD_LED4);
   return NULL;
 }
 
@@ -179,6 +190,8 @@ const USBConfig   	config =   {
 
 
 int main(void) {
+    int i;
+/*
   transferBuf[0] =  'h';
   transferBuf[1] =  'e';
   transferBuf[2] =  'l';
@@ -190,7 +203,9 @@ int main(void) {
   transferBuf[8] =  'B';
   transferBuf[9] =  '!';
   transferBuf[10] =  0;
-
+*/
+  for(i=0;i<IN_PACKETSIZE;i++)
+    transferBuf[i] = 'a'+(i%26);
   //Start System
   halInit();
   chSysInit();
@@ -214,20 +229,17 @@ int main(void) {
   usbStartReceiveI(usbp, EP_OUT);
   chSysUnlock();
 
+  /*
+   * Starts first transfer
+   * all further transactions are initiated by the dataTransmitted callback
+   */
+  usbPrepareTransmit(usbp, EP_IN, transferBuf, sizeof transferBuf);
+  chSysLock();
+  usbStartTransmitI(usbp, EP_IN);
+  chSysUnlock();
 
+  //main loop, does nothing, transfers are handled in the background
   while (TRUE) {
-    //proper locking required
-    while(transmitting){
-      chThdSleepMilliseconds(1000);
-    }
-    transmitting = 1;
-    //initiate transmission
-    // should be replaced with something usefull, e.g. from an ADC_complete callback
-    usbPrepareTransmit(usbp, EP_IN, transferBuf, sizeof transferBuf);
-
-    chSysLock();
-    usbStartTransmitI(usbp, EP_IN);
-    chSysUnlock();
-
+    chThdSleepMilliseconds(1000);
   }
 }

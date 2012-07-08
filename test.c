@@ -43,6 +43,8 @@ static libusb_device_handle *handle;
 static uint8_t receiveBuf[64];
 uint8_t transferBuf[64];
 
+uint16_t counter=0;
+
 /*
  * Read a packet
  */
@@ -56,7 +58,7 @@ static int usb_read(void)
 		return -1;
     }
 	else{
-		printf("receive %d bytes from device: %s\n", nread, receiveBuf);
+		printf("%d receive %d bytes from device: %s\n", ++counter, nread, receiveBuf);
 		//printf("%s", receiveBuf);  //Use this for benchmarking purposes
 		return 0;
     }
@@ -150,7 +152,7 @@ int main(int argc, char **argv)
 
 	while (1){
 		usb_read();
-		usb_write();
+//		usb_write();
     }
     //never reached
 	libusb_close(handle);

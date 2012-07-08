@@ -131,13 +131,24 @@ static const uint8_t stringSerialNumber[] = {
 };
 
 /*
+ * String not found string.
+ */
+static const uint8_t stringNotFound[] = {
+  USB_DESC_BYTE(34),                    /* bLength .                        */
+  USB_DESC_BYTE(USB_DESCRIPTOR_STRING), /* bDescriptorType.                 */
+  'S', 0, 't', 0, 'r', 0, 'i', 0, 'n', 0, 'g', 0, ' ', 0, 'n', 0,
+  'o', 0, 't', 0, ' ', 0, 'f', 0, 'o', 0, 'u', 0, 'n', 0, 'd', 0
+};
+
+/*
  * Strings wrappers array.
  */
 static const USBDescriptor vcom_strings[] = {
   {sizeof stringLanguage,           stringLanguage},
   {sizeof stringVendor,             stringVendor},
   {sizeof stringDeviceDescriptor,   stringDeviceDescriptor},
-  {sizeof stringSerialNumber,       stringSerialNumber}
+  {sizeof stringSerialNumber,       stringSerialNumber},
+  {sizeof stringNotFound,           stringNotFound}
 };
 
 
