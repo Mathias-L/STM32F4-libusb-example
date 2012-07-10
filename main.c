@@ -12,6 +12,7 @@ uint8_t receiveBuf[OUT_PACKETSIZE];
 uint8_t transferBuf[IN_PACKETSIZE];
 
 USBDriver *  	usbp = &USBD1;
+uint8_t initUSB=0;
 
 /*
  * data Transmitted Callback
@@ -127,8 +128,8 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
        must be used.*/
     usbInitEndpointI(usbp, 1, &ep1config);
     usbInitEndpointI(usbp, 2, &ep2config);
-
     chSysUnlockFromIsr();
+    initUSB =1;
     return;
   case USB_EVENT_SUSPEND:
     return;
@@ -220,26 +221,30 @@ int main(void) {
   chThdSleepMilliseconds(1000);
   palTogglePad(GPIOD, GPIOD_LED6);
 
-  /*
-   * Starts first receiving transaction
-   * all further transactions are initiated by the dataReceived callback
-   */
-  usbPrepareReceive(usbp, EP_OUT, receiveBuf, 64);
-  chSysLock();
-  usbStartReceiveI(usbp, EP_OUT);
-  chSysUnlock();
-
-  /*
-   * Starts first transfer
-   * all further transactions are initiated by the dataTransmitted callback
-   */
-  usbPrepareTransmit(usbp, EP_IN, transferBuf, sizeof transferBuf);
-  chSysLock();
-  usbStartTransmitI(usbp, EP_IN);
-  chSysUnlock();
-
   //main loop, does nothing, transfers are handled in the background
   while (TRUE) {
-    chThdSleepMilliseconds(1000);
+    while(!initUSB){
+      chThdSleepMilliseconds(100);
+    }
+    palTogglePad(GPIOD, GPIOD_LED6);
+
+    /*
+     * Starts first receiving transaction
+     * all further transactions are initiated by the dataReceived callback
+     */
+    usbPrepareReceive(usbp, EP_OUT, receiveBuf, 64);
+    chSysLock();
+    usbStartReceiveI(usbp, EP_OUT);
+    chSysUnlock();
+
+    /*
+     * Starts first transfer
+     * all further transactions are initiated by the dataTransmitted callback
+     */
+    usbPrepareTransmit(usbp, EP_IN, transferBuf, sizeof transferBuf);
+    chSysLock();
+    usbStartTransmitI(usbp, EP_IN);
+    chSysUnlock();
+
   }
 }
