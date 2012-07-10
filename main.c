@@ -13,7 +13,7 @@ uint8_t transferBuf[IN_PACKETSIZE];
 
 USBDriver *  	usbp = &USBD1;
 uint8_t initUSB=0;
-
+uint8_t usbStatus = 0;
 /*
  * data Transmitted Callback
  */
@@ -21,7 +21,7 @@ void dataTransmitted(USBDriver *usbp, usbep_t ep){
     (void) usbp;
     (void) ep;
     palTogglePad(GPIOD, GPIOD_LED3);
-
+    if(!usbStatus) return;
     usbPrepareTransmit(usbp, EP_IN, transferBuf, IN_PACKETSIZE);
 
     chSysLockFromIsr();
@@ -58,7 +58,7 @@ static const USBEndpointConfig ep1config = {
 void dataReceived(USBDriver *usbp, usbep_t ep){
     (void) usbp;
     (void) ep;
-
+    if(!usbStatus) return;
     //osp == ep2outstate
     USBOutEndpointState *osp = usbp->epc[ep]->out_state;
     if(osp->rxcnt){
@@ -117,18 +117,21 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
   (void) usbp;
   switch (event) {
   case USB_EVENT_RESET:
+    usbStatus = 0;
+    palTogglePad(GPIOD, GPIOD_LED3);
     return;
   case USB_EVENT_ADDRESS:
     return;
   case USB_EVENT_CONFIGURED:
-    chSysLockFromIsr();
 
     /* Enables the endpoints specified into the configuration.
        Note, this callback is invoked from an ISR so I-Class functions
        must be used.*/
+    chSysLockFromIsr();
     usbInitEndpointI(usbp, 1, &ep1config);
     usbInitEndpointI(usbp, 2, &ep2config);
     chSysUnlockFromIsr();
+    //allow the main thread to init the transfers
     initUSB =1;
     return;
   case USB_EVENT_SUSPEND:
@@ -212,22 +215,23 @@ int main(void) {
   chSysInit();
 
 
+    palTogglePad(GPIOD, GPIOD_LED3);
+    palTogglePad(GPIOD, GPIOD_LED4);
+    palTogglePad(GPIOD, GPIOD_LED5);
+    palTogglePad(GPIOD, GPIOD_LED6);
   //Start and Connect USB
   usbStart(usbp, &config);
   usbConnectBus(usbp);
 
-  //Some sleep needed?
-  palTogglePad(GPIOD, GPIOD_LED6);
-  chThdSleepMilliseconds(1000);
-  palTogglePad(GPIOD, GPIOD_LED6);
 
   //main loop, does nothing, transfers are handled in the background
   while (TRUE) {
     while(!initUSB){
-      chThdSleepMilliseconds(100);
+      chThdSleepMilliseconds(1000);
     }
+    chThdSleepMilliseconds(100);
     palTogglePad(GPIOD, GPIOD_LED6);
-
+    usbStatus=1;
     /*
      * Starts first receiving transaction
      * all further transactions are initiated by the dataReceived callback
@@ -245,6 +249,6 @@ int main(void) {
     chSysLock();
     usbStartTransmitI(usbp, EP_IN);
     chSysUnlock();
-
+    initUSB=0;
   }
 }
