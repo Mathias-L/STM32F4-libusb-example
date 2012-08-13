@@ -9,7 +9,8 @@
 #include "usbdescriptor.h"
 
 uint8_t receiveBuf[OUT_PACKETSIZE];
-uint8_t transferBuf[IN_PACKETSIZE];
+#define IN_MULT 16
+uint8_t transferBuf[IN_PACKETSIZE*IN_MULT];
 
 USBDriver *  	usbp = &USBD1;
 uint8_t initUSB=0;
@@ -22,7 +23,7 @@ void dataTransmitted(USBDriver *usbp, usbep_t ep){
     (void) ep;
     palTogglePad(GPIOD, GPIOD_LED3);
     if(!usbStatus) return;
-    usbPrepareTransmit(usbp, EP_IN, transferBuf, IN_PACKETSIZE);
+    usbPrepareTransmit(usbp, EP_IN, transferBuf, IN_PACKETSIZE*IN_MULT);
 
     chSysLockFromIsr();
     usbStartTransmitI(usbp, EP_IN);
@@ -47,6 +48,7 @@ static const USBEndpointConfig ep1config = {
   0x0000,                   //OUT endpoint maximum packet size
   &ep1instate,              //USBEndpointState associated to the IN endpoint
   NULL,                     //USBEndpointState associated to the OUTendpoint
+  IN_MULT,
   NULL                      //Pointer to a buffer for setup packets (NULL for non-control EPs)
 };
 
@@ -106,6 +108,7 @@ static const USBEndpointConfig ep2config = {
   OUT_PACKETSIZE,
   NULL,
   &ep2outstate,
+  1,
   NULL
 };
 
@@ -208,7 +211,7 @@ int main(void) {
   transferBuf[9] =  '!';
   transferBuf[10] =  0;
 */
-  for(i=0;i<IN_PACKETSIZE;i++)
+  for(i=0;i<IN_PACKETSIZE*IN_MULT;i++)
     transferBuf[i] = 'a'+(i%26);
   //Start System
   halInit();
