@@ -40,7 +40,7 @@
  static libusb_context *ctx = NULL;
  static libusb_device_handle *handle;
 
- static uint8_t receiveBuf[64];
+ static uint8_t receiveBuf[64*128];
  uint8_t transferBuf[64];
 
  uint16_t counter=0;
@@ -71,7 +71,7 @@
  		if(diff>1000000000L){
  			t1.tv_sec = t2.tv_sec;
  			t1.tv_nsec = t2.tv_nsec;
- 			printf("\rreceived %5d packets and %8d bytes in %8d us, %8.1f Bps\n", benchPackets, benchBytes, diff/1000, benchBytes*1000000.0/(diff/1000));
+ 			printf("\rreceived %5d transfers and %8d bytes in %8d us, %8.1f Bps, transfersize: %d\n", benchPackets, benchBytes, diff/1000, benchBytes*1000000.0/(diff/1000), nread);
  			benchPackets=0;
  			benchBytes=0;
  		}
