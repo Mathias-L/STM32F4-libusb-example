@@ -36,18 +36,18 @@
 #define USB_ENDPOINT_OUT	(LIBUSB_ENDPOINT_OUT | 2)   /* endpoint address */
 #define USB_TIMEOUT	        3000        /* Connection timeout (in ms) */
 
- static libusb_context *ctx = NULL;
- static libusb_device_handle *handle;
+static libusb_context *ctx = NULL;
+static libusb_device_handle *handle;
 
- static uint8_t receiveBuf[1024*256*4];
- uint8_t transferBuf[64];
+static uint8_t receiveBuf[1024*256*4];
+uint8_t transferBuf[64];
 
- uint16_t counter=0;
+uint16_t counter=0;
 
- uint32_t benchPackets=1;
- uint32_t benchBytes=0;
- struct timespec t1, t2;
- uint32_t diff=0;
+uint32_t benchPackets=1;
+uint32_t benchBytes=0;
+struct timespec t1, t2;
+uint32_t diff=0;
 
 /*
  * Read a packet
@@ -55,6 +55,7 @@
  static int usb_read(void)
  {
  	int nread, ret;
+ 	//blocking synchronous call to libUSB when it finished, one packet was received
  	ret = libusb_bulk_transfer(handle, USB_ENDPOINT_IN, receiveBuf, sizeof(receiveBuf),
  		&nread, USB_TIMEOUT);
 	benchBytes =nread;
@@ -71,7 +72,7 @@
 
 /*
  * write a few bytes to the device
- *
+ * this function is unused for benchmarking
  */
  uint16_t count=0;
  static int usb_write(void)
@@ -80,7 +81,6 @@
     //count up
  	n = sprintf((char*)transferBuf, "%d\0",count++);
     //write transfer
-    //probably unsafe to use n twice...
  	ret = libusb_bulk_transfer(handle, USB_ENDPOINT_OUT, transferBuf, n,
  		&n, USB_TIMEOUT);
     //Error handling
@@ -129,11 +129,16 @@
  	exit(0);
  }
 
+ /*
+  * main loop
+  * inits the USB and starts the receiving loop
+  */
  int main(int argc, char **argv)
  {
     //Pass Interrupt Signal to our handler
  	signal(SIGINT, sighandler);
 
+    //init libUSB
  	libusb_init(&ctx);
  	libusb_set_debug(ctx, 3);
 
@@ -153,7 +158,10 @@
  		return 2;
  	}
  	printf("Interface claimed\n");
+ 	//take the first time measurement
  	clock_gettime(CLOCK_REALTIME, &t1);
+
+    //continuously read USB transfers
  	while (1){
  		usb_read();
 //		usb_write();

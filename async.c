@@ -74,12 +74,13 @@ void cb_out(struct libusb_transfer *transfer)
 //     That is, the data for in_buffer IS AVAILABLE.
 void cb_in(struct libusb_transfer *transfer)
 {
-//	printf("%s", in_buffer);
-
+    //measure the time
 	clock_gettime(CLOCK_REALTIME, &t2);
+	//submit the next transfer
 	libusb_submit_transfer(transfer_in);
 
 	benchBytes += transfer->actual_length;
+	//this averages the bandwidth over many transfers
 	if(++benchPackets%100==0){
 		//Warning: uint32_t has a max value of 4294967296 so this will overflow over 4secs
 		diff = (t2.tv_sec-t1.tv_sec)*1000000000L+(t2.tv_nsec-t1.tv_nsec);
@@ -98,12 +99,15 @@ int main(void)
 
 	int r = 1;  // result
 	int i;
+
+	//init libUSB
 	r = libusb_init(NULL);
 	if (r < 0) {
 		fprintf(stderr, "Failed to initialise libusb\n");
 		return 1;
 	}
 
+    //open the device
 	devh = libusb_open_device_with_vid_pid(ctx,
  		USB_VENDOR_ID, USB_PRODUCT_ID);
  	if (!devh) {
@@ -111,6 +115,7 @@ int main(void)
  		return 1;
  	}
 
+    //claim the interface
 	r = libusb_claim_interface(devh, 0);
 	if (r < 0) {
 		fprintf(stderr, "usb_claim_interface error %d\n", r);
@@ -119,12 +124,15 @@ int main(void)
 	} else  {
         printf("Claimed interface\n");
 
-        // Define transfer of data IN (IN to host PC from USB-device)
+        // allocate transfer of data IN (IN to host PC from USB-device)
         transfer_in  = libusb_alloc_transfer(0);
         libusb_fill_bulk_transfer( transfer_in, devh, USB_ENDPOINT_IN,
             in_buffer,  LEN_IN_BUFFER,  // Note: in_buffer is where input data written.
             cb_in, NULL, 0); // no user data
+
+        //take the initial time measurement
         clock_gettime(CLOCK_REALTIME, &t1);
+        //submit the transfer, all following transfers are initiated from the CB
         r = libusb_submit_transfer(transfer_in);
 
         // Define signal handler to catch system generated signals

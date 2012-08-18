@@ -15,14 +15,20 @@ uint8_t transferBuf[IN_PACKETSIZE*IN_MULT];
 USBDriver *  	usbp = &USBD1;
 uint8_t initUSB=0;
 uint8_t usbStatus = 0;
+
 /*
  * data Transmitted Callback
  */
 void dataTransmitted(USBDriver *usbp, usbep_t ep){
     (void) usbp;
     (void) ep;
+    //Toggle a status LED (toggles up to 1000x per second)
     palTogglePad(GPIOD, GPIOD_LED3);
+
+    // exit on USB reset
     if(!usbStatus) return;
+
+    // Since this is a benchmarking example, the next transfer is emitted immediately
     usbPrepareTransmit(usbp, EP_IN, transferBuf, sizeof transferBuf);
 
     chSysLockFromIsr();
@@ -54,15 +60,15 @@ static const USBEndpointConfig ep1config = {
 
 /*
  * data Received Callback
- * it writes the received Data to the output buffer
- * to have an echo effect
+ * It toggles an LED based on the first received character.
  */
 void dataReceived(USBDriver *usbp, usbep_t ep){
     USBOutEndpointState *osp = usbp->epc[ep]->out_state;
     (void) usbp;
     (void) ep;
+    // exit on USB reset
     if(!usbStatus) return;
-    //osp == ep2outstate
+
     if(osp->rxcnt){
         switch(receiveBuf[0]){
             case '1':
@@ -120,6 +126,7 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
   (void) usbp;
   switch (event) {
   case USB_EVENT_RESET:
+    //with usbStatus==0 no new transfers will be initiated
     usbStatus = 0;
     palTogglePad(GPIOD, GPIOD_LED3);
     return;
@@ -148,6 +155,9 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
   return;
 }
 
+/*
+ * Returns the USB descriptors defined in usbdescriptor.h
+ */
 static const USBDescriptor *get_descriptor(USBDriver *usbp,
                                            uint8_t dtype,
                                            uint8_t dindex,
@@ -173,19 +183,19 @@ static const USBDescriptor *get_descriptor(USBDriver *usbp,
   return NULL;
 }
 
-  /**
-   * Requests hook callback.
-   * This hook allows to be notified of standard requests or to
-   *          handle non standard requests.
-   * This implementation does nothing and passes all requests to
-   *     the upper layers
-   */
+/*
+ * Requests hook callback.
+ * This hook allows to be notified of standard requests or to
+ *          handle non standard requests.
+ * This implementation does nothing and passes all requests to
+ *     the upper layers
+ */
 bool_t requestsHook(USBDriver *usbp) {
     (void) usbp;
     return FALSE;
 }
 
-/**
+/*
  * USBconfig
  */
 const USBConfig   	config =   {
@@ -197,20 +207,9 @@ const USBConfig   	config =   {
 
 
 int main(void) {
-    uint16_t i;
-/*
-  transferBuf[0] =  'h';
-  transferBuf[1] =  'e';
-  transferBuf[2] =  'l';
-  transferBuf[3] =  'l';
-  transferBuf[4] =  'o';
-  transferBuf[5] =  ' ';
-  transferBuf[6] =  'U';
-  transferBuf[7] =  'S';
-  transferBuf[8] =  'B';
-  transferBuf[9] =  '!';
-  transferBuf[10] =  0;
-*/
+  uint16_t i;
+
+  //fill the transfer buffer
   for(i=0;i<sizeof transferBuf;i++)
     transferBuf[i] = 'a'+(i%26);
   //Start System
@@ -218,20 +217,27 @@ int main(void) {
   chSysInit();
 
 
-    palTogglePad(GPIOD, GPIOD_LED3);
-    palTogglePad(GPIOD, GPIOD_LED4);
-    palTogglePad(GPIOD, GPIOD_LED5);
-    palTogglePad(GPIOD, GPIOD_LED6);
+  palTogglePad(GPIOD, GPIOD_LED3);
+  palTogglePad(GPIOD, GPIOD_LED4);
+  palTogglePad(GPIOD, GPIOD_LED5);
+  palTogglePad(GPIOD, GPIOD_LED6);
+
   //Start and Connect USB
   usbStart(usbp, &config);
   usbConnectBus(usbp);
 
 
-  //main loop, does nothing, transfers are handled in the background
+  /* main loop
+   * initiates the first transfers
+   * all concurent transfers are initiated from their callbacks
+   */
   while (TRUE) {
+    //initUSB is true, when the USB cable is disconneted
+    // or on the first iteration
     while(!initUSB){
       chThdSleepMilliseconds(1000);
     }
+
     chThdSleepMilliseconds(100);
     palTogglePad(GPIOD, GPIOD_LED6);
     usbStatus=1;
