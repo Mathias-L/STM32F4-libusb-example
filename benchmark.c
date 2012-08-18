@@ -3,7 +3,6 @@
  * It openes an USB device, expects two Bulk endpoints,
  *   EP1 should be IN
  *   EP2 should be OUT
- * It alternates between reading and writing a packet to the Device.
  * It uses Synchronous device I/O
  *
  * Compile:
@@ -40,12 +39,12 @@
  static libusb_context *ctx = NULL;
  static libusb_device_handle *handle;
 
- static uint8_t receiveBuf[64*128];
+ static uint8_t receiveBuf[1024*256*4];
  uint8_t transferBuf[64];
 
  uint16_t counter=0;
 
- uint32_t benchPackets=0;
+ uint32_t benchPackets=1;
  uint32_t benchBytes=0;
  struct timespec t1, t2;
  uint32_t diff=0;
@@ -58,26 +57,15 @@
  	int nread, ret;
  	ret = libusb_bulk_transfer(handle, USB_ENDPOINT_IN, receiveBuf, sizeof(receiveBuf),
  		&nread, USB_TIMEOUT);
- 	if (ret){
- 		printf("ERROR in bulk read: %d\n", ret);
- 		return -1;
- 	}
- 	else{
- 		++benchPackets;
- 		benchBytes +=nread;
- 		clock_gettime(CLOCK_REALTIME, &t2);
- 		diff = (t2.tv_sec-t1.tv_sec)*1000000000L+(t2.tv_nsec-t1.tv_nsec);
-		//Warning: uint32_t has a max value of 4294967296 so this will overflow over 4secs
- 		if(diff>1000000000L){
- 			t1.tv_sec = t2.tv_sec;
- 			t1.tv_nsec = t2.tv_nsec;
- 			printf("\rreceived %5d transfers and %8d bytes in %8d us, %8.1f Bps, transfersize: %d\n", benchPackets, benchBytes, diff/1000, benchBytes*1000000.0/(diff/1000), nread);
- 			benchPackets=0;
- 			benchBytes=0;
- 		}
-		//printf("%s", receiveBuf);  //Use this for benchmarking purposes
- 		return 0;
- 	}
+	benchBytes =nread;
+	clock_gettime(CLOCK_REALTIME, &t2);
+
+	//Warning: uint32_t has a max value of 4294967296 so this will overflow over 4secs
+	diff = (t2.tv_sec-t1.tv_sec)*1000000000L+(t2.tv_nsec-t1.tv_nsec);
+    t1.tv_sec = t2.tv_sec;
+ 	t1.tv_nsec = t2.tv_nsec;
+ 	printf("\rreceived %5d transfers and %8d bytes in %8d us, %8.1f B/s, transfersize: %d", benchPackets, benchBytes, diff/1000, benchBytes*1000000.0/(diff/1000), nread);
+    fflush(stdout);
  }
 
 
