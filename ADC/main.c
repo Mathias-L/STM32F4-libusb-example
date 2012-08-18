@@ -19,7 +19,9 @@ static Thread *tp = NULL;
 uint8_t initUSB=0;
 
 /*
- * Initiate USB transfer thread
+ * USB transfer thread
+ * when there is a whole packet of ADC data to transmit
+ * a USB transfer will be started
  */
 static WORKING_AREA(waInitUsbTransfer, 128);
 static msg_t initUsbTransfer(void *arg) {
@@ -29,19 +31,23 @@ static msg_t initUsbTransfer(void *arg) {
   chRegSetThreadName("initUsbTransfer");
 
   while (TRUE) {
+    //wait until enough ADC data is aquired or an overflow is detected
     while((((p1+BUFFLEN-p2)%BUFFLEN)<IN_PACKETSIZE) && !overflow){
       chThdSleepMilliseconds(1);
     }
 
+    // copy the ADC data to the USB transfer buffer
     for (i=0;i<IN_PACKETSIZE;i++){
       transferBuf[i]=((uint8_t*) data)[p2];
-      if(p1==p2) transferBuf[i]= 0xff;
+      //if an overflow is detected, write the overflow count.
+      // in a real application this has to be send on another channel
       if(overflow){
           transferBuf[i]= overflow;
           overflow=0;
       }
       p2 = (p2+1)%BUFFLEN;
     }
+    //wait for the last transmission to complete
     while(transmitting){
       chThdSleepMilliseconds(1);
     }
@@ -63,10 +69,9 @@ static msg_t initUsbTransfer(void *arg) {
 void dataTransmitted(USBDriver *usbp, usbep_t ep){
     (void) usbp;
     (void) ep;
+    //reset the transmitting flag
     transmitting=0;
     palTogglePad(GPIOD, GPIOD_LED3);
-
-
 }
 
 /**
@@ -91,14 +96,13 @@ static const USBEndpointConfig ep1config = {
 
 /*
  * data Received Callback
- * it writes the received Data to the output buffer
- * to have an echo effect
+ * It toggles an LED based on the first received character.
  */
 void dataReceived(USBDriver *usbp, usbep_t ep){
+    USBOutEndpointState *osp = usbp->epc[ep]->out_state;
     (void) usbp;
     (void) ep;
-    //osp == ep2outstate
-    USBOutEndpointState *osp = usbp->epc[ep]->out_state;
+
     if(osp->rxcnt){
         switch(receiveBuf[0]){
             case '1':
@@ -182,11 +186,13 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
   return;
 }
 
+/*
+ * Returns the USB descriptors defined in usbdescriptor.h
+ */
 static const USBDescriptor *get_descriptor(USBDriver *usbp,
                                            uint8_t dtype,
                                            uint8_t dindex,
                                            uint16_t lang) {
-
   (void)usbp;
   (void)lang;
 
@@ -232,12 +238,12 @@ const USBConfig   	config =   {
 
 int main(void) {
 
-  //Start System
+  //start system
   halInit();
   chSysInit();
 
 
-  //Start and Connect USB
+  //start and connect USB
   usbStart(usbp, &config);
   usbConnectBus(usbp);
 
@@ -252,7 +258,7 @@ int main(void) {
       }
     palTogglePad(GPIOD, GPIOD_LED6);
     /*
-     * Starts first receiving transaction
+     * starts first receiving transaction
      * all further transactions are initiated by the dataReceived callback
      */
     usbPrepareReceive(usbp, EP_OUT, receiveBuf, 64);
@@ -260,8 +266,7 @@ int main(void) {
     usbStartReceiveI(usbp, EP_OUT);
     chSysUnlock();
     /*
-     * Starts first transfer
-     * all further transactions are initiated by the dataTransmitted callback
+     * starts the transfer thread
      */
     tp = chThdCreateStatic(waInitUsbTransfer, sizeof(waInitUsbTransfer), NORMALPRIO, initUsbTransfer, NULL);
     initUSB=0;
