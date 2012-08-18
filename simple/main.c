@@ -9,7 +9,7 @@
 #include "usbdescriptor.h"
 
 uint8_t receiveBuf[OUT_PACKETSIZE];
-#define IN_MULT 16
+#define IN_MULT 4
 uint8_t transferBuf[IN_PACKETSIZE*IN_MULT];
 
 USBDriver *  	usbp = &USBD1;
@@ -23,7 +23,7 @@ void dataTransmitted(USBDriver *usbp, usbep_t ep){
     (void) ep;
     palTogglePad(GPIOD, GPIOD_LED3);
     if(!usbStatus) return;
-    usbPrepareTransmit(usbp, EP_IN, transferBuf, IN_PACKETSIZE*IN_MULT);
+    usbPrepareTransmit(usbp, EP_IN, transferBuf, sizeof transferBuf);
 
     chSysLockFromIsr();
     usbStartTransmitI(usbp, EP_IN);
@@ -58,11 +58,11 @@ static const USBEndpointConfig ep1config = {
  * to have an echo effect
  */
 void dataReceived(USBDriver *usbp, usbep_t ep){
+    USBOutEndpointState *osp = usbp->epc[ep]->out_state;
     (void) usbp;
     (void) ep;
     if(!usbStatus) return;
     //osp == ep2outstate
-    USBOutEndpointState *osp = usbp->epc[ep]->out_state;
     if(osp->rxcnt){
         switch(receiveBuf[0]){
             case '1':
@@ -197,7 +197,7 @@ const USBConfig   	config =   {
 
 
 int main(void) {
-    int i;
+    uint16_t i;
 /*
   transferBuf[0] =  'h';
   transferBuf[1] =  'e';
@@ -211,7 +211,7 @@ int main(void) {
   transferBuf[9] =  '!';
   transferBuf[10] =  0;
 */
-  for(i=0;i<IN_PACKETSIZE*IN_MULT;i++)
+  for(i=0;i<sizeof transferBuf;i++)
     transferBuf[i] = 'a'+(i%26);
   //Start System
   halInit();
