@@ -10,7 +10,8 @@
 #include "usbdescriptor.h"
 
 uint8_t receiveBuf[OUT_PACKETSIZE];
-uint8_t transferBuf[IN_PACKETSIZE];
+#define IN_MULT 4
+uint8_t transferBuf[IN_PACKETSIZE*IN_MULT];
 
 USBDriver *  	usbp = &USBD1;
 
@@ -91,6 +92,7 @@ static const USBEndpointConfig ep1config = {
   0x0000,                   //OUT endpoint maximum packet size
   &ep1instate,              //USBEndpointState associated to the IN endpoint
   NULL,                     //USBEndpointState associated to the OUTendpoint
+  IN_MULT,                  //in EP multiplier
   NULL                      //Pointer to a buffer for setup packets (NULL for non-control EPs)
 };
 
@@ -148,6 +150,7 @@ static const USBEndpointConfig ep2config = {
   OUT_PACKETSIZE,
   NULL,
   &ep2outstate,
+  1,
   NULL
 };
 
